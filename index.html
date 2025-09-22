@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Nintendo Super Mario Bros — Dashboard Demo</title>
+  <style>
+    /* --------------------- Reset & base --------------------- */
+    :root{
+      --bg:#0b1220; --card:#0f1b2b; --accent:#ffcc00; --muted:#9bb0c7; --glass: rgba(255,255,255,0.04);
+      --success:#3ad29f; --danger:#ff6b6b; --mono: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:var(--mono);background:linear-gradient(180deg,#061022 0%, #071b2b 60%);color:#e6f0fb}
+    .app{max-width:1200px;margin:28px auto;padding:20px;display:grid;grid-template-columns:1fr 360px;gap:20px}
+
+    /* --------------------- Left column (Dashboard) --------------------- */
+    .panel{background:linear-gradient(180deg,var(--card), #081422);border-radius:14px;padding:18px;box-shadow:0 6px 18px rgba(3,10,18,0.6);}
+    header.app-head{display:flex;gap:16px;align-items:center;margin-bottom:14px}
+    .logo{width:72px;height:72px;border-radius:12px;background:linear-gradient(90deg,#ff5e5e,#ffcc00);display:flex;align-items:center;justify-content:center;font-weight:800;color:#071022;font-size:18px}
+    .title h1{margin:0;font-size:20px;letter-spacing:0.6px}
+    .title p{margin:3px 0 0;font-size:13px;color:var(--muted)}
+
+    .stats{display:flex;gap:12px;margin-bottom:14px}
+    .stat{flex:1;padding:12px;border-radius:10px;background:var(--glass);backdrop-filter:blur(6px);}
+    .stat h3{margin:0;font-size:13px;color:var(--muted)}
+    .stat strong{display:block;font-size:20px;margin-top:6px}
+
+    .game-area{display:grid;grid-template-columns:1fr 320px;gap:16px}
+    /* canvas card */
+    .game-card{display:flex;flex-direction:column}
+    .game-controls{display:flex;gap:8px;align-items:center;margin-top:10px}
+    .btn{background:#102233;border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:8px;cursor:pointer}
+
+    /* Right column (Sidebar): leaderboard, settings */
+    .sidebar{display:flex;flex-direction:column;gap:14px}
+    .leaderboard table{width:100%;border-collapse:collapse}
+    .leaderboard th, .leaderboard td{padding:8px;font-size:13px;text-align:left}
+    .leaderboard tr{border-bottom:1px dashed rgba(255,255,255,0.03)}
+    .small{font-size:12px;color:var(--muted)}
+
+    /* mini map */
+    .minimap{height:96px;border-radius:8px;background:linear-gradient(180deg,#073043,#042233);display:flex;align-items:center;justify-content:center;color:var(--muted)}
+
+    /* footer */
+    footer{margin-top:12px;color:var(--muted);font-size:12px;text-align:center}
+
+    /* responsive */
+    @media (max-width:980px){.app{grid-template-columns:1fr;}.game-area{grid-template-columns:1fr}}
+
+    /* small HUD overlay for canvas */
+    .hud{display:flex;gap:12px;align-items:center}
+    .chip{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:8px;font-size:13px}
+
+    /* slider */
+    .row{display:flex;gap:10px;align-items:center}
+    input[type=range]{width:100%}
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div>
+      <div class="panel">
+        <header class="app-head">
+          <div class="logo">SMB</div>
+          <div class="title">
+            <h1>Super Mario Bros — Dashboard (Demo)</h1>
+            <p>Interactive single-file dashboard: play a tiny demo, view stats and leaderboards.</p>
+          </div>
+        </header>
+
+        <div class="stats">
+          <div class="stat">
+            <h3>Score</h3>
+            <strong id="score">0</strong>
+            <span class="small">Total points collected</span>
+          </div>
+          <div class="stat">
+            <h3>Lives</h3>
+            <strong id="lives">3</strong>
+            <span class="small">Remaining lives</span>
+          </div>
+          <div class="stat">
+            <h3>World</h3>
+            <strong id="world">1-1</strong>
+            <span class="small">Current level</span>
+          </div>
+        </div>
+
+        <div class="game-area">
+          <div class="game-card panel" style="padding:12px">
+            <canvas id="game" width="760" height="200" style="border-radius:8px;background:linear-gradient(#7bdcff,#6cb5e6);display:block;max-width:100%"></canvas>
+
+            <div class="game-controls">
+              <div class="hud">
+                <div class="chip">Time: <span id="time">400</span></div>
+                <div class="chip">Coins: <span id="coins">0</span></div>
+              </div>
+
+              <div style="margin-left:auto;display:flex;gap:8px">
+                <button class="btn" id="startBtn">Start</button>
+                <button class="btn" id="pauseBtn">Pause</button>
+                <button class="btn" id="resetBtn">Reset</button>
+              </div>
+            </div>
+
+            <p style="margin-top:10px;font-size:13px;color:var(--muted)">Controls: ← → to move, ↑ or Space to jump. Collect coins, avoid pits. This is a tiny demo—not the full game.</p>
+          </div>
+
+          <div class="panel" style="padding:12px;display:flex;flex-direction:column;gap:12px">
+            <div class="minimap">Mini Map Preview</div>
+
+            <div>
+              <h3 style="margin:0 0 8px 0">Level Info</h3>
+              <div class="small">Enemies: Goombas (simulated), Platforms: Simple fixed platforms, Coins: collectible blocks.</div>
+            </div>
+
+            <div>
+              <h3 style="margin:0 0 8px 0">Settings</h3>
+              <div class="row">
+                <label class="small">Game Speed</label>
+                <input type="range" id="speedRange" min="0.5" max="2" step="0.1" value="1">
+              </div>
+              <div style="margin-top:8px" class="row">
+                <label class="small">Sound</label>
+                <button class="btn" id="soundToggle">Toggle</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <footer>Demo dashboard — replace assets & expand logic for production use.</footer>
+      </div>
+
+      <div style="height:16px"></div>
+
+      <div class="panel">
+        <h3 style="margin-top:0">Game Events Log</h3>
+        <div id="log" style="height:120px;overflow:auto;padding:8px;background:rgba(255,255,255,0.02);border-radius:8px;font-size:13px;color:var(--muted)"></div>
+      </div>
+    </div>
+
+    <aside class="sidebar">
+      <div class="panel leaderboard">
+        <h3 style="margin-top:0">Leaderboard</h3>
+        <table>
+          <thead>
+            <tr><th>Rank</th><th>Player</th><th>Score</th></tr>
+          </thead>
+          <tbody id="leaderboardBody">
+            <tr><td>1</td><td>MarioFan</td><td>8900</td></tr>
+            <tr><td>2</td><td>LuigiL</td><td>7200</td></tr>
+            <tr><td>3</td><td>SpeedRun</td><td>5400</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin-top:0">Quick Stats</h3>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="small">Sessions today: <strong id="sessions">124</strong></div>
+          <div class="small">Avg session: <strong id="avgSession">3m 20s</strong></div>
+          <div class="small">Top score today: <strong id="topToday">10,400</strong></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin-top:0">Export / Share</h3>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn" id="exportCSV">Export CSV</button>
+          <button class="btn" id="shareBtn">Share</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // --- Simple platformer demo (tiny) ---
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    let w = canvas.width, h = canvas.height;
+
+    // Game state
+    const state = {
+      running:false,
+      score:0,
+      lives:3,
+      coins:0,
+      time:400,
+      speed:1,
+      player:{x:40,y:140,w:18,h:28,vy:0,onGround:false},
+      gravity:0.9,
+      platforms:[],
+      coinsPos:[],
+      pits:[],
+      keys:{left:false,right:false,jump:false}
+    };
+
+    // create ground and some platforms + coins
+    function buildLevel(){
+      state.platforms = [];
+      state.coinsPos = [];
+      state.pits = [];
+      // ground
+      state.platforms.push({x:0,y:176,w:760,h:24});
+      // floating platforms
+      state.platforms.push({x:140,y:130,w:60,h:10});
+      state.platforms.push({x:260,y:110,w:80,h:10});
+      state.platforms.push({x:420,y:150,w:60,h:10});
+      // coins above platforms
+      state.coinsPos.push({x:170,y:110,got:false});
+      state.coinsPos.push({x:280,y:90,got:false});
+      state.coinsPos.push({x:440,y:130,got:false});
+      // pit example (no platform between x=520..620)
+      state.pits.push({x:520,w:100});
+    }
+
+    buildLevel();
+
+    function log(msg){
+      const el = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      el.innerHTML = `<div>[${time}] ${msg}</div>` + el.innerHTML;
+    }
+
+    function draw(){
+      // clear
+      ctx.clearRect(0,0,w,h);
+
+      // sky gradient already in css but we'll paint background for consistency
+      // draw platforms
+      ctx.fillStyle = '#4b2e0f';
+      state.platforms.forEach(p=>{
+        ctx.fillRect(p.x,p.y,p.w,p.h);
+      });
+
+      // draw pits
+      state.pits.forEach(p=>{
+        ctx.fillStyle = '#071022';
+        ctx.fillRect(p.x,176, p.w,24);
+      });
+
+      // draw coins
+      state.coinsPos.forEach(c=>{
+        if(!c.got){
+          ctx.fillStyle = '#ffd24d';
+          ctx.beginPath();
+          ctx.arc(c.x,c.y,6,0,Math.PI*2);
+          ctx.fill();
+        }
+      });
+
+      // draw player (simple blocky)
+      ctx.fillStyle = '#d93939';
+      const p = state.player;
+      ctx.fillRect(p.x,p.y,p.w,p.h);
+      // face
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(p.x+4,p.y+6,4,4);
+
+      // HUD overlay: little ground line
+      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.beginPath();ctx.moveTo(0,176);ctx.lineTo(w,176);ctx.stroke();
+    }
+
+    function physicsStep(dt){
+      const p = state.player;
+      // horizontal
+      const speed = 1.4 * state.speed;
+      if(state.keys.left) p.x -= speed * dt;
+      if(state.keys.right) p.x += speed * dt;
+
+      // gravity
+      p.vy += state.gravity * 0.6;
+      p.y += p.vy;
+
+      // simple collisions with platforms
+      p.onGround = false;
+      state.platforms.forEach(pl=>{
+        if(p.x + p.w > pl.x && p.x < pl.x + pl.w){
+          if(p.y + p.h >= pl.y && p.y + p.h <= pl.y + pl.h + 12){
+            // land on platform
+            p.y = pl.y - p.h;
+            p.vy = 0;
+            p.onGround = true;
+          }
+        }
+      });
+
+      // jump
+      if(state.keys.jump && p.onGround){ p.vy = -10; p.onGround=false; }
+
+      // coins collection
+      state.coinsPos.forEach(c=>{
+        if(!c.got && Math.hypot((p.x + p.w/2)-c.x,(p.y + p.h/2)-c.y) < 18){
+          c.got = true; state.coins += 1; state.score += 100; document.getElementById('coins').textContent = state.coins; document.getElementById('score').textContent = state.score; log('Collected a coin (+100)');
+        }
+      });
+
+      // falling into pit
+      state.pits.forEach(pt=>{
+        if(p.x + p.w/2 > pt.x && p.x + p.w/2 < pt.x + pt.w && p.y > 176){
+          // fell
+          state.lives -= 1;
+          document.getElementById('lives').textContent = state.lives;
+          log('Fell into a pit — life lost');
+          respawn();
+        }
+      });
+
+      // keep player bounds
+      if(p.x < 0) p.x = 0;
+      if(p.x + p.w > w) p.x = w - p.w;
+      if(p.y > h + 60){ // big fall
+        state.lives -= 1; document.getElementById('lives').textContent = state.lives; log('Fell offscreen — life lost'); respawn();
+      }
+    }
+
+    function respawn(){
+      state.player.x = 40; state.player.y = 140; state.player.vy = 0; state.coins = 0; state.score = Math.max(0,state.score-200);
+      document.getElementById('coins').textContent = state.coins; document.getElementById('score').textContent = state.score;
+    }
+
+    // game loop
+    let last = 0;
+    function loop(ts){
+      if(!last) last = ts; const dt = Math.min(2,(ts-last)/16) * 1; last = ts;
+      if(state.running){
+        // update timer
+        state.time = Math.max(0, state.time - 0.02 * state.speed);
+        document.getElementById('time').textContent = Math.floor(state.time);
+        physicsStep(dt);
+        draw();
+        if(state.lives <= 0){ state.running = false; log('Game Over - no lives'); }
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // input
+    window.addEventListener('keydown', e=>{
+      if(e.key === 'ArrowLeft') state.keys.left = true;
+      if(e.key === 'ArrowRight') state.keys.right = true;
+      if(e.key === 'ArrowUp' || e.code === 'Space') state.keys.jump = true;
+    });
+    window.addEventListener('keyup', e=>{
+      if(e.key === 'ArrowLeft') state.keys.left = false;
+      if(e.key === 'ArrowRight') state.keys.right = false;
+      if(e.key === 'ArrowUp' || e.code === 'Space') state.keys.jump = false;
+    });
+
+    // buttons
+    document.getElementById('startBtn').addEventListener('click', ()=>{ state.running = true; log('Game started'); });
+    document.getElementById('pauseBtn').addEventListener('click', ()=>{ state.running = false; log('Game paused'); });
+    document.getElementById('resetBtn').addEventListener('click', ()=>{ state.running=false; state.score=0; state.lives=3; state.coins=0; state.time=400; buildLevel(); respawn(); document.getElementById('score').textContent=0; document.getElementById('lives').textContent=3; document.getElementById('time').textContent=400; document.getElementById('coins').textContent=0; log('Game reset'); });
+
+    document.getElementById('speedRange').addEventListener('input', e=>{ state.speed = parseFloat(e.target.value); log('Speed: ' + state.speed.toFixed(1)); });
+    document.getElementById('soundToggle').addEventListener('click', ()=>{ log('Sound toggled (demo)'); });
+
+    // export CSV (simple leaderboard export)
+    document.getElementById('exportCSV').addEventListener('click', ()=>{
+      const rows = [['rank','player','score'],[1,'MarioFan',8900],[2,'LuigiL',7200],[3,'SpeedRun',5400]];
+      const csv = rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+      const blob = new Blob([csv],{type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download='leaderboard.csv'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // share (copy link demo)
+    document.getElementById('shareBtn').addEventListener('click', ()=>{ navigator.clipboard.writeText('Demo: copy this HTML file and open in browser.'); log('Share text copied to clipboard'); });
+
+    // small autosave of leaderboard (demo)
+    function seedLeaderboard(){
+      const body = document.getElementById('leaderboardBody');
+      body.innerHTML = '';
+      const sample = [{n:'MarioFan',s:8900},{n:'LuigiL',s:7200},{n:'SpeedRun',s:5400}];
+      sample.forEach((p,i)=>{ const tr = document.createElement('tr'); tr.innerHTML = `<td>${i+1}</td><td>${p.n}</td><td>${p.s}</td>`; body.appendChild(tr); });
+    }
+    seedLeaderboard();
+
+    // initial HUD
+    document.getElementById('score').textContent = state.score;
+    document.getElementById('lives').textContent = state.lives;
+    document.getElementById('coins').textContent = state.coins;
+    document.getElementById('time').textContent = state.time;
+    document.getElementById('sessions').textContent = 124;
+
+    log('Dashboard ready');
+  </script>
+</body>
+</html>
